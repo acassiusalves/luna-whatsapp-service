@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  luna-whatsapp:
+    build: .
+    container_name: luna-whatsapp-service
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - API_KEY=${API_KEY:-}
+      - SESSIONS_PATH=/app/sessions
+      - WEBHOOK_URL=${WEBHOOK_URL:-}
+    volumes:
+      - whatsapp_sessions:/app/sessions
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  whatsapp_sessions:
+    driver: local
