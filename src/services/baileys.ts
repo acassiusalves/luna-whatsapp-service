@@ -214,7 +214,50 @@ class BaileysService {
 
         // Log completo para mensagens do Facebook (@lid) para debug
         if (msg.key.remoteJid?.includes('@lid')) {
-          console.log(`[${name}] Facebook/Messenger message - full data:`, JSON.stringify(msg, null, 2).substring(0, 1500));
+          console.log(`[${name}] LID message - full data:`, JSON.stringify(msg, null, 2).substring(0, 1500));
+
+          // Tenta resolver o LID para número de telefone real
+          const lid = msg.key.remoteJid;
+          let resolvedPhoneNumber: string | undefined;
+
+          try {
+            // O Baileys armazena o mapeamento LID -> PN internamente
+            // Verifica se o socket tem o signalRepository com lidMapping
+            const sock = instance.socket as unknown as {
+              signalRepository?: {
+                lidMapping?: {
+                  getPNForLID?: (lid: string) => Promise<string | null>;
+                }
+              }
+            };
+
+            if (sock?.signalRepository?.lidMapping?.getPNForLID) {
+              const pn = await sock.signalRepository.lidMapping.getPNForLID(lid);
+              if (pn) {
+                resolvedPhoneNumber = pn;
+                console.log(`[${name}] LID ${lid} resolved to phone number: ${pn}`);
+              }
+            }
+          } catch (lidError) {
+            console.log(`[${name}] Could not resolve LID to phone number:`, lidError);
+          }
+
+          // Envia webhook com o número resolvido (se disponível)
+          this.sendWebhook('messages.upsert', {
+            instance: name,
+            data: {
+              key: msg.key,
+              message: msg.message,
+              messageTimestamp: msg.messageTimestamp,
+              pushName: msg.pushName,
+              verifiedBizName: (msg as Record<string, unknown>).verifiedBizName,
+              bizPrivacyStatus: (msg as Record<string, unknown>).bizPrivacyStatus,
+              participant: msg.key.participant,
+              // Número de telefone resolvido do LID (se disponível)
+              resolvedPhoneNumber,
+            },
+          });
+          continue; // Já enviou o webhook, pula para próxima mensagem
         }
 
         this.sendWebhook('messages.upsert', {
