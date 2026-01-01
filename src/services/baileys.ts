@@ -3,6 +3,7 @@ import makeWASocket, {
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
+  AnyMessageContent,
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import * as QRCode from 'qrcode';
@@ -235,29 +236,37 @@ class BaileysService {
     const buffer = Buffer.from(await response.arrayBuffer());
     const contentType = response.headers.get('content-type') || 'application/octet-stream';
 
-    const messageContent: Record<string, unknown> = {};
+    let messageContent: AnyMessageContent;
 
     switch (mediaType) {
       case 'image':
-        messageContent.image = buffer;
-        messageContent.mimetype = contentType;
-        if (caption) messageContent.caption = caption;
+        messageContent = {
+          image: buffer,
+          caption: caption || undefined,
+        };
         break;
       case 'video':
-        messageContent.video = buffer;
-        messageContent.mimetype = contentType;
-        if (caption) messageContent.caption = caption;
+        messageContent = {
+          video: buffer,
+          caption: caption || undefined,
+        };
         break;
       case 'audio':
-        messageContent.audio = buffer;
-        messageContent.mimetype = contentType.includes('audio') ? contentType : 'audio/mp4';
-        messageContent.ptt = contentType.includes('ogg'); // Voice note if ogg
+        messageContent = {
+          audio: buffer,
+          mimetype: contentType.includes('audio') ? contentType : 'audio/mp4',
+          ptt: contentType.includes('ogg'), // Voice note if ogg
+        };
         break;
       case 'document':
-        messageContent.document = buffer;
-        messageContent.mimetype = contentType;
-        messageContent.fileName = fileName || 'document';
+        messageContent = {
+          document: buffer,
+          mimetype: contentType,
+          fileName: fileName || 'document',
+        };
         break;
+      default:
+        throw new Error(`Unsupported media type: ${mediaType}`);
     }
 
     const result = await instance.socket.sendMessage(jid, messageContent);
