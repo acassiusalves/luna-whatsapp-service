@@ -4,6 +4,7 @@ import cors from 'cors';
 import instancesRouter from './routes/instances.js';
 import messagesRouter from './routes/messages.js';
 import webhookRouter from './routes/webhook.js';
+import { baileysService } from './services/baileys.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -99,22 +100,51 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`
+// Graceful shutdown handlers
+const gracefulShutdown = async (signal: string) => {
+  console.log(`\n${signal} received, shutting down gracefully...`);
+
+  try {
+    await baileysService.disconnectAll();
+    console.log('Graceful shutdown complete');
+    process.exit(0);
+  } catch (error) {
+    console.error('Error during graceful shutdown:', error);
+    process.exit(1);
+  }
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Start server with session preloading
+async function startServer() {
+  // Wait for existing sessions to be loaded before accepting requests
+  console.log('Loading existing WhatsApp sessions...');
+  await baileysService.loadExistingSessions();
+  console.log('Sessions loaded successfully');
+
+  app.listen(PORT, () => {
+    console.log(`
 ╔════════════════════════════════════════════╗
 ║     Luna WhatsApp Service                  ║
 ║     Running on port ${PORT}                    ║
 ╚════════════════════════════════════════════╝
-  `);
+    `);
 
-  if (process.env.WEBHOOK_URL) {
-    console.log(`Webhook configured: ${process.env.WEBHOOK_URL}`);
-  } else {
-    console.log('Webhook not configured. Set WEBHOOK_URL env variable.');
-  }
+    if (process.env.WEBHOOK_URL) {
+      console.log(`Webhook configured: ${process.env.WEBHOOK_URL}`);
+    } else {
+      console.log('Webhook not configured. Set WEBHOOK_URL env variable.');
+    }
 
-  if (!API_KEY) {
-    console.log('⚠️  No API_KEY set - running in development mode (no auth)');
-  }
+    if (!API_KEY) {
+      console.log('⚠️  No API_KEY set - running in development mode (no auth)');
+    }
+  });
+}
+
+startServer().catch((error) => {
+  console.error('Failed to start server:', error);
+  process.exit(1);
 });

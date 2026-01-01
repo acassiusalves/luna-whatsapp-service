@@ -5,8 +5,10 @@ builder = "nixpacks"
 startCommand = "npm start"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
+healthcheckPath = "/health"
+healthcheckTimeout = 30
 
 # Volume para persistir sessões do WhatsApp
-[[deploy.volumes]]
-mountPath = "/app/sessions"
-name = "whatsapp-sessions"
+[[mounts]]
+source = "whatsapp-sessions"
+destination = "/app/sessions"

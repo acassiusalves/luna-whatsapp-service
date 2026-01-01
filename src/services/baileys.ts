@@ -17,6 +17,8 @@ class BaileysService {
   private sessionsPath: string;
   private webhookUrl: string | null = null;
   private logger = pino({ level: 'silent' });
+  private reconnectAttempts: Map<string, number> = new Map();
+  private keepAliveIntervals: Map<string, NodeJS.Timeout> = new Map();
 
   constructor() {
     this.sessionsPath = process.env.SESSIONS_PATH || './sessions';
@@ -27,11 +29,10 @@ class BaileysService {
     // Load webhook URL from environment
     this.webhookUrl = process.env.WEBHOOK_URL || null;
 
-    // Load existing sessions on startup
-    this.loadExistingSessions();
+    // Note: Sessions are now loaded explicitly from index.ts to ensure they're ready before server starts
   }
 
-  private async loadExistingSessions(): Promise<void> {
+  async loadExistingSessions(): Promise<void> {
     try {
       const sessions = fs.readdirSync(this.sessionsPath);
       for (const sessionName of sessions) {
@@ -129,9 +130,13 @@ class BaileysService {
             fs.rmSync(sessionPath, { recursive: true, force: true });
           }
         } else if (shouldReconnect) {
-          // Reconnect automatically after delay
+          // Reconnect automatically with exponential backoff
           instance.status = 'connecting';
-          setTimeout(() => this.connect(name), 3000);
+          const attempts = this.reconnectAttempts.get(name) || 0;
+          const delay = Math.min(3000 * Math.pow(2, attempts), 60000); // Max 60s
+          this.reconnectAttempts.set(name, attempts + 1);
+          console.log(`[${name}] Reconnecting in ${delay/1000}s (attempt ${attempts + 1})`);
+          setTimeout(() => this.connect(name), delay);
         }
 
         this.sendWebhook('connection.update', {
@@ -145,6 +150,28 @@ class BaileysService {
         instance.status = 'connected';
         instance.qrCode = null;
         instance.lastConnected = new Date();
+
+        // Reset reconnect attempts on successful connection
+        this.reconnectAttempts.set(name, 0);
+
+        // Clear any existing keep-alive interval
+        const existingInterval = this.keepAliveIntervals.get(name);
+        if (existingInterval) {
+          clearInterval(existingInterval);
+        }
+
+        // Set up keep-alive: send presence update every 5 minutes
+        const keepAliveInterval = setInterval(() => {
+          if (instance.socket && instance.status === 'connected') {
+            try {
+              instance.socket.sendPresenceUpdate('available');
+              console.log(`[${name}] Keep-alive ping sent`);
+            } catch (error) {
+              console.error(`[${name}] Keep-alive error:`, error);
+            }
+          }
+        }, 5 * 60 * 1000); // 5 minutes
+        this.keepAliveIntervals.set(name, keepAliveInterval);
 
         // Extract user info
         const userId = socket.user?.id;
@@ -396,6 +423,33 @@ class BaileysService {
     }
 
     return `${cleaned}@s.whatsapp.net`;
+  }
+
+  async disconnectAll(): Promise<void> {
+    console.log('Disconnecting all instances for graceful shutdown...');
+
+    // Clear all keep-alive intervals
+    for (const [name, interval] of this.keepAliveIntervals) {
+      clearInterval(interval);
+      console.log(`[${name}] Keep-alive interval cleared`);
+    }
+    this.keepAliveIntervals.clear();
+
+    // Close all sockets
+    for (const [name, instance] of this.instances) {
+      if (instance.socket) {
+        try {
+          console.log(`[${name}] Closing socket...`);
+          instance.socket.end(undefined);
+        } catch (error) {
+          console.error(`[${name}] Error closing socket:`, error);
+        }
+      }
+    }
+
+    // Wait a bit for credentials to be saved
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    console.log('All instances disconnected gracefully');
   }
 
   private async sendWebhook(event: string, data: Record<string, unknown>): Promise<void> {
