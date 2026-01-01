@@ -212,6 +212,11 @@ class BaileysService {
 
         console.log(`[${name}] New message from ${msg.key.remoteJid}`);
 
+        // Log completo para mensagens do Facebook (@lid) para debug
+        if (msg.key.remoteJid?.includes('@lid')) {
+          console.log(`[${name}] Facebook/Messenger message - full data:`, JSON.stringify(msg, null, 2).substring(0, 1500));
+        }
+
         this.sendWebhook('messages.upsert', {
           instance: name,
           data: {
@@ -219,6 +224,11 @@ class BaileysService {
             message: msg.message,
             messageTimestamp: msg.messageTimestamp,
             pushName: msg.pushName,
+            // Campos adicionais que podem conter informações úteis
+            verifiedBizName: (msg as Record<string, unknown>).verifiedBizName,
+            bizPrivacyStatus: (msg as Record<string, unknown>).bizPrivacyStatus,
+            // Para mensagens do Facebook, pode haver um campo com o número real
+            participant: msg.key.participant,
           },
         });
       }
