@@ -1,0 +1,12 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "npm start"
+restartPolicyType = "on-failure"
+restartPolicyMaxRetries = 10
+
+# Volume para persistir sessões do WhatsApp
+[[deploy.volumes]]
+mountPath = "/app/sessions"
+name = "whatsapp-sessions"
