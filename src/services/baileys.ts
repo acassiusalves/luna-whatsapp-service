@@ -250,8 +250,8 @@ class BaileysService {
               message: msg.message,
               messageTimestamp: msg.messageTimestamp,
               pushName: msg.pushName,
-              verifiedBizName: (msg as Record<string, unknown>).verifiedBizName,
-              bizPrivacyStatus: (msg as Record<string, unknown>).bizPrivacyStatus,
+              verifiedBizName: (msg as unknown as Record<string, unknown>).verifiedBizName,
+              bizPrivacyStatus: (msg as unknown as Record<string, unknown>).bizPrivacyStatus,
               participant: msg.key.participant,
               // Número de telefone resolvido do LID (se disponível)
               resolvedPhoneNumber,
@@ -268,8 +268,8 @@ class BaileysService {
             messageTimestamp: msg.messageTimestamp,
             pushName: msg.pushName,
             // Campos adicionais que podem conter informações úteis
-            verifiedBizName: (msg as Record<string, unknown>).verifiedBizName,
-            bizPrivacyStatus: (msg as Record<string, unknown>).bizPrivacyStatus,
+            verifiedBizName: (msg as unknown as Record<string, unknown>).verifiedBizName,
+            bizPrivacyStatus: (msg as unknown as Record<string, unknown>).bizPrivacyStatus,
             // Para mensagens do Facebook, pode haver um campo com o número real
             participant: msg.key.participant,
           },
