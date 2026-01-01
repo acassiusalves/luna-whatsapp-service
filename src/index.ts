@@ -6,7 +6,7 @@ import messagesRouter from './routes/messages.js';
 import webhookRouter from './routes/webhook.js';
 
 const app = express();
-const PORT = process.env.PORT || 2000;
+const PORT = process.env.PORT || 3001;
 const API_KEY = process.env.API_KEY;
 
 // Middleware
