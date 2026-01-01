@@ -4,6 +4,8 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
   AnyMessageContent,
+  GroupMetadata,
+  GroupParticipant,
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import * as QRCode from 'qrcode';
@@ -412,6 +414,58 @@ class BaileysService {
 
   getWebhookUrl(): string | null {
     return this.webhookUrl;
+  }
+
+  /**
+   * Busca todos os grupos do WhatsApp
+   */
+  async getGroups(name: string): Promise<Array<{
+    id: string;
+    subject: string;
+    owner?: string;
+    creation?: number;
+    size?: number;
+    desc?: string;
+    descId?: string;
+    restrict?: boolean;
+    announce?: boolean;
+    participants?: Array<{
+      id: string;
+      admin?: string;
+    }>;
+  }>> {
+    const instance = this.instances.get(name);
+    if (!instance?.socket) {
+      throw new Error('Instance not connected');
+    }
+
+    try {
+      // Busca todos os grupos participando
+      const groups: Record<string, GroupMetadata> = await instance.socket.groupFetchAllParticipating();
+
+      // Converte o objeto para array
+      const groupList = Object.values(groups).map((group: GroupMetadata) => ({
+        id: group.id,
+        subject: group.subject,
+        owner: group.owner,
+        creation: group.creation,
+        size: group.size,
+        desc: group.desc,
+        descId: group.descId,
+        restrict: group.restrict,
+        announce: group.announce,
+        participants: group.participants?.map((p: GroupParticipant) => ({
+          id: p.id,
+          admin: p.admin,
+        })),
+      }));
+
+      console.log(`[${name}] Found ${groupList.length} groups`);
+      return groupList;
+    } catch (error) {
+      console.error(`[${name}] Error fetching groups:`, error);
+      throw error;
+    }
   }
 
   private formatJid(phone: string): string {

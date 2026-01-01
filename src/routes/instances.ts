@@ -235,4 +235,32 @@ router.get('/:name/profile-picture/:jid', async (req: Request, res: Response) =>
   }
 });
 
+// Get all groups for instance
+router.get('/:name/groups', async (req: Request, res: Response) => {
+  try {
+    const { name } = req.params;
+    const info = baileysService.getInstanceInfo(name);
+
+    if (!info) {
+      res.status(404).json({ success: false, error: 'Instance not found' });
+      return;
+    }
+
+    if (info.status !== 'connected') {
+      res.status(400).json({ success: false, error: 'Instance not connected' });
+      return;
+    }
+
+    const groups = await baileysService.getGroups(name);
+
+    res.json({ success: true, groups });
+  } catch (error) {
+    console.error('Error getting groups:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;
