@@ -41,17 +41,27 @@ const authMiddleware = (req: Request, res: Response, next: NextFunction): void =
   const xApiKey = req.headers['x-api-key'] as string | undefined;
   const apiKey = authHeader?.replace('Bearer ', '') || xApiKey;
 
+  // Debug logging
+  console.log('[AUTH] Path:', req.path);
+  console.log('[AUTH] Headers:', JSON.stringify(req.headers, null, 2));
+  console.log('[AUTH] x-api-key:', xApiKey);
+  console.log('[AUTH] Expected API_KEY:', API_KEY);
+  console.log('[AUTH] Received apiKey:', apiKey);
+
   if (!API_KEY) {
     // No API key configured, allow all requests (development mode)
+    console.log('[AUTH] No API_KEY configured, allowing request');
     next();
     return;
   }
 
   if (!apiKey || apiKey !== API_KEY) {
+    console.log('[AUTH] Authentication failed');
     res.status(401).json({ success: false, error: 'Unauthorized' });
     return;
   }
 
+  console.log('[AUTH] Authentication successful');
   next();
 };
 
