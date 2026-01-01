@@ -36,6 +36,12 @@ class BaileysService {
     try {
       const sessions = fs.readdirSync(this.sessionsPath);
       for (const sessionName of sessions) {
+        // Skip system directories like lost+found (created by Linux volumes)
+        if (sessionName === 'lost+found' || sessionName.startsWith('.')) {
+          console.log(`Skipping system directory: ${sessionName}`);
+          continue;
+        }
+
         const sessionPath = path.join(this.sessionsPath, sessionName);
         if (fs.statSync(sessionPath).isDirectory()) {
           console.log(`Loading existing session: ${sessionName}`);
