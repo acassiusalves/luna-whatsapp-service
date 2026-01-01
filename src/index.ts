@@ -41,19 +41,6 @@ const authMiddleware = (req: Request, res: Response, next: NextFunction): void =
   const xApiKey = req.headers['x-api-key'] as string | undefined;
   const apiKey = authHeader?.replace('Bearer ', '') || xApiKey;
 
-  // Debug: Log key comparison with full details
-  console.log('[AUTH DEBUG]', {
-    hasXApiKey: !!xApiKey,
-    hasAuthHeader: !!authHeader,
-    receivedKeyPrefix: apiKey?.substring(0, 10),
-    expectedKeyPrefix: API_KEY?.substring(0, 10),
-    receivedLength: apiKey?.length,
-    expectedLength: API_KEY?.length,
-    receivedFull: apiKey,
-    expectedFull: API_KEY,
-    keysMatch: apiKey === API_KEY
-  });
-
   if (!API_KEY) {
     // No API key configured, allow all requests (development mode)
     next();
