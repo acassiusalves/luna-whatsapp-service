@@ -8,7 +8,8 @@ restartPolicyMaxRetries = 10
 healthcheckPath = "/health"
 healthcheckTimeout = 30
 
-# Volume para persistir sessões do WhatsApp
-[[mounts]]
-source = "whatsapp-sessions"
-destination = "/app/sessions"
+# IMPORTANTE: O volume deve ser criado manualmente no Railway Dashboard:
+# 1. Vá em Settings > Volumes
+# 2. Clique em "New Volume"
+# 3. Mount Path: /app/sessions
+# 4. Name: whatsapp-sessions
