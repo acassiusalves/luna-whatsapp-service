@@ -38,7 +38,8 @@ const authMiddleware = (req: Request, res: Response, next: NextFunction): void =
   }
 
   const authHeader = req.headers.authorization;
-  const apiKey = authHeader?.replace('Bearer ', '') || req.headers['x-api-key'];
+  const xApiKey = req.headers['x-api-key'] as string | undefined;
+  const apiKey = authHeader?.replace('Bearer ', '') || xApiKey;
 
   if (!API_KEY) {
     // No API key configured, allow all requests (development mode)
