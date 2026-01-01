@@ -354,8 +354,10 @@ class BaileysService {
   }
 
   private formatJid(phone: string): string {
-    // Already a JID
-    if (phone.includes('@')) return phone;
+    // Already a JID - return as is
+    if (phone.includes('@')) {
+      return phone;
+    }
 
     // Clean phone number
     let cleaned = phone.replace(/\D/g, '');
