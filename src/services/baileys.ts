@@ -205,6 +205,9 @@ class BaileysService {
 
   async sendText(instanceName: string, to: string, text: string): Promise<unknown> {
     const instance = this.instances.get(instanceName);
+
+    console.log(`[${instanceName}] sendText - instance exists: ${!!instance}, socket: ${!!instance?.socket}, status: ${instance?.status}`);
+
     if (!instance?.socket) throw new Error('Instance not connected');
     if (instance.status !== 'connected') throw new Error('Instance not connected');
 
