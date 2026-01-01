@@ -456,7 +456,7 @@ class BaileysService {
         announce: group.announce,
         participants: group.participants?.map((p: GroupParticipant) => ({
           id: p.id,
-          admin: p.admin,
+          admin: p.admin ?? undefined,
         })),
       }));
 
