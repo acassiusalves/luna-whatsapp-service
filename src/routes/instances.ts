@@ -212,4 +212,27 @@ router.post('/:name/reconnect', async (req: Request, res: Response) => {
   }
 });
 
+// Get profile picture
+router.get('/:name/profile-picture/:jid', async (req: Request, res: Response) => {
+  try {
+    const { name, jid } = req.params;
+    const info = baileysService.getInstanceInfo(name);
+
+    if (!info) {
+      res.status(404).json({ success: false, error: 'Instance not found' });
+      return;
+    }
+
+    const profilePicUrl = await baileysService.getProfilePicture(name, jid);
+
+    res.json({ success: true, profilePicUrl });
+  } catch (error) {
+    console.error('Error getting profile picture:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;

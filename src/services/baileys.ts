@@ -266,6 +266,22 @@ class BaileysService {
     return result;
   }
 
+  async getProfilePicture(instanceName: string, jid: string): Promise<string | null> {
+    const instance = this.instances.get(instanceName);
+    if (!instance?.socket) throw new Error('Instance not connected');
+    if (instance.status !== 'connected') throw new Error('Instance not connected');
+
+    try {
+      const formattedJid = this.formatJid(jid);
+      const profilePicUrl = await instance.socket.profilePictureUrl(formattedJid, 'image');
+      console.log(`[${instanceName}] Got profile picture for ${formattedJid}`);
+      return profilePicUrl || null;
+    } catch (error) {
+      console.log(`[${instanceName}] No profile picture for ${jid}:`, error);
+      return null;
+    }
+  }
+
   getInstance(name: string): Instance | undefined {
     return this.instances.get(name);
   }
