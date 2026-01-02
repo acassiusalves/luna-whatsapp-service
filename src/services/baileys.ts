@@ -6,6 +6,9 @@ import makeWASocket, {
   AnyMessageContent,
   GroupMetadata,
   GroupParticipant,
+  downloadContentFromMessage,
+  MediaType,
+  proto,
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import * as QRCode from 'qrcode';
@@ -212,6 +215,50 @@ class BaileysService {
 
         console.log(`[${name}] New message from ${msg.key.remoteJid}`);
 
+        // Detecta e baixa mídia antes de enviar o webhook
+        let mediaBase64: string | null = null;
+        let mediaMimetype: string | null = null;
+
+        const message = msg.message;
+        if (message) {
+          if (message.imageMessage) {
+            console.log(`[${name}] Image message detected, downloading...`);
+            const media = await this.downloadMediaAsBase64(message, 'image');
+            if (media) {
+              mediaBase64 = media.base64;
+              mediaMimetype = media.mimetype;
+            }
+          } else if (message.audioMessage) {
+            console.log(`[${name}] Audio message detected, downloading...`);
+            const media = await this.downloadMediaAsBase64(message, 'audio');
+            if (media) {
+              mediaBase64 = media.base64;
+              mediaMimetype = media.mimetype;
+            }
+          } else if (message.videoMessage) {
+            console.log(`[${name}] Video message detected, downloading...`);
+            const media = await this.downloadMediaAsBase64(message, 'video');
+            if (media) {
+              mediaBase64 = media.base64;
+              mediaMimetype = media.mimetype;
+            }
+          } else if (message.documentMessage) {
+            console.log(`[${name}] Document message detected, downloading...`);
+            const media = await this.downloadMediaAsBase64(message, 'document');
+            if (media) {
+              mediaBase64 = media.base64;
+              mediaMimetype = media.mimetype;
+            }
+          } else if (message.stickerMessage) {
+            console.log(`[${name}] Sticker message detected, downloading...`);
+            const media = await this.downloadMediaAsBase64(message, 'sticker');
+            if (media) {
+              mediaBase64 = media.base64;
+              mediaMimetype = media.mimetype;
+            }
+          }
+        }
+
         // Log completo para mensagens do Facebook (@lid) para debug
         if (msg.key.remoteJid?.includes('@lid')) {
           console.log(`[${name}] LID message - full data:`, JSON.stringify(msg, null, 2).substring(0, 1500));
@@ -242,7 +289,7 @@ class BaileysService {
             console.log(`[${name}] Could not resolve LID to phone number:`, lidError);
           }
 
-          // Envia webhook com o número resolvido (se disponível)
+          // Envia webhook com o número resolvido (se disponível) e mídia
           this.sendWebhook('messages.upsert', {
             instance: name,
             data: {
@@ -255,6 +302,9 @@ class BaileysService {
               participant: msg.key.participant,
               // Número de telefone resolvido do LID (se disponível)
               resolvedPhoneNumber,
+              // Mídia baixada em base64
+              mediaBase64,
+              mediaMimetype,
             },
           });
           continue; // Já enviou o webhook, pula para próxima mensagem
@@ -272,6 +322,9 @@ class BaileysService {
             bizPrivacyStatus: (msg as unknown as Record<string, unknown>).bizPrivacyStatus,
             // Para mensagens do Facebook, pode haver um campo com o número real
             participant: msg.key.participant,
+            // Mídia baixada em base64
+            mediaBase64,
+            mediaMimetype,
           },
         });
       }
@@ -536,6 +589,43 @@ class BaileysService {
     }
 
     return `${cleaned}@s.whatsapp.net`;
+  }
+
+  /**
+   * Baixa mídia de uma mensagem e retorna em base64
+   */
+  private async downloadMediaAsBase64(
+    message: proto.IMessage,
+    mediaType: MediaType
+  ): Promise<{ base64: string; mimetype: string } | null> {
+    try {
+      const mediaMessage =
+        message.imageMessage ||
+        message.audioMessage ||
+        message.videoMessage ||
+        message.documentMessage ||
+        message.stickerMessage;
+
+      if (!mediaMessage) return null;
+
+      console.log(`[MEDIA] Downloading ${mediaType}...`);
+      const stream = await downloadContentFromMessage(mediaMessage, mediaType);
+      const chunks: Buffer[] = [];
+
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+      }
+
+      const buffer = Buffer.concat(chunks);
+      const base64 = buffer.toString('base64');
+      const mimetype = mediaMessage.mimetype || 'application/octet-stream';
+
+      console.log(`[MEDIA] Downloaded ${mediaType}: ${buffer.length} bytes, mimetype: ${mimetype}`);
+      return { base64, mimetype };
+    } catch (error) {
+      console.error(`[MEDIA] Error downloading ${mediaType}:`, error);
+      return null;
+    }
   }
 
   async disconnectAll(): Promise<void> {
