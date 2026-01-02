@@ -599,14 +599,31 @@ class BaileysService {
     mediaType: MediaType
   ): Promise<{ base64: string; mimetype: string } | null> {
     try {
-      const mediaMessage =
-        message.imageMessage ||
-        message.audioMessage ||
-        message.videoMessage ||
-        message.documentMessage ||
-        message.stickerMessage;
+      // Seleciona o mediaMessage correto baseado no tipo
+      let mediaMessage: proto.Message.IImageMessage | proto.Message.IAudioMessage | proto.Message.IVideoMessage | proto.Message.IDocumentMessage | proto.Message.IStickerMessage | null | undefined = null;
 
-      if (!mediaMessage) return null;
+      switch (mediaType) {
+        case 'image':
+          mediaMessage = message.imageMessage;
+          break;
+        case 'audio':
+          mediaMessage = message.audioMessage;
+          break;
+        case 'video':
+          mediaMessage = message.videoMessage;
+          break;
+        case 'document':
+          mediaMessage = message.documentMessage;
+          break;
+        case 'sticker':
+          mediaMessage = message.stickerMessage;
+          break;
+      }
+
+      if (!mediaMessage) {
+        console.log(`[MEDIA] No media message found for type ${mediaType}`);
+        return null;
+      }
 
       console.log(`[MEDIA] Downloading ${mediaType}...`);
       const stream = await downloadContentFromMessage(mediaMessage, mediaType);
