@@ -809,10 +809,15 @@ class BaileysService {
   }
 
   private async sendWebhook(event: string, data: Record<string, unknown>, retryCount = 0): Promise<void> {
-    if (!this.webhookUrl) return;
+    if (!this.webhookUrl) {
+      console.log(`[WEBHOOK] URL not configured, skipping event: ${event}`);
+      return;
+    }
 
     const maxRetries = 3;
     const baseDelay = 1000; // 1 segundo
+
+    console.log(`[WEBHOOK] Sending ${event} to ${this.webhookUrl.substring(0, 50)}...`);
 
     try {
       const response = await fetch(this.webhookUrl, {
@@ -830,6 +835,8 @@ class BaileysService {
       if (!response.ok) {
         throw new Error(`HTTP ${response.status} ${response.statusText}`);
       }
+
+      console.log(`[WEBHOOK] ${event} sent successfully`);
     } catch (error) {
       console.error(`Webhook error (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
 
