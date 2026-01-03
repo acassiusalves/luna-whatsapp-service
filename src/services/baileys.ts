@@ -17,6 +17,22 @@ import path from 'path';
 import fs from 'fs';
 import type { Instance, InstanceInfo, InstanceStatus } from '../types/index.js';
 
+// Debug: armazenar últimos eventos para diagnóstico
+const debugEvents: Array<{ timestamp: string; event: string; data: unknown }> = [];
+const MAX_DEBUG_EVENTS = 50;
+
+function logDebugEvent(event: string, data: unknown) {
+  debugEvents.unshift({ timestamp: new Date().toISOString(), event, data });
+  if (debugEvents.length > MAX_DEBUG_EVENTS) {
+    debugEvents.pop();
+  }
+  console.log(`[DEBUG EVENT] ${event}:`, JSON.stringify(data).substring(0, 500));
+}
+
+export function getDebugEvents() {
+  return debugEvents;
+}
+
 class BaileysService {
   private instances: Map<string, Instance> = new Map();
   private sessionsPath: string;
@@ -211,6 +227,7 @@ class BaileysService {
     socket.ev.on('messages.upsert', async ({ messages, type }) => {
       // Log detalhado ANTES de qualquer filtro para debug
       console.log(`[${name}] >>> messages.upsert EVENT FIRED - type: ${type}, count: ${messages.length}`);
+      logDebugEvent('messages.upsert', { instance: name, type, count: messages.length, firstMsgJid: messages[0]?.key?.remoteJid });
       for (const msg of messages) {
         console.log(`[${name}] Message DEBUG: fromMe=${msg.key.fromMe}, type=${type}, jid=${msg.key.remoteJid?.substring(0, 20)}`);
       }

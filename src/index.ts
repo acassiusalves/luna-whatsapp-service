@@ -4,7 +4,7 @@ import cors from 'cors';
 import instancesRouter from './routes/instances.js';
 import messagesRouter from './routes/messages.js';
 import webhookRouter from './routes/webhook.js';
-import { baileysService } from './services/baileys.js';
+import { baileysService, getDebugEvents } from './services/baileys.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -128,6 +128,14 @@ app.get('/debug/headers', (req: Request, res: Response) => {
     // Mostra char codes para debug
     receivedCodes: Array.from(xApiKey).map((c, i) => ({ pos: i, char: c, code: c.charCodeAt(0) })),
     expectedCodes: Array.from(expectedKey).map((c, i) => ({ pos: i, char: c, code: c.charCodeAt(0) })),
+  });
+});
+
+// Debug events (mostra últimos eventos de mensagem para diagnóstico)
+app.get('/debug/events', (_req: Request, res: Response) => {
+  res.json({
+    events: getDebugEvents(),
+    count: getDebugEvents().length,
   });
 });
 
