@@ -18,6 +18,24 @@ router.get('/', (_req: Request, res: Response) => {
   }
 });
 
+// Health check detalhado de todas as instâncias
+router.get('/health', (_req: Request, res: Response) => {
+  try {
+    const instances = baileysService.getHealthInfo();
+    res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      instances
+    });
+  } catch (error) {
+    console.error('Error getting health info:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // Create new instance
 router.post('/', async (req: Request, res: Response) => {
   try {

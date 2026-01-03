@@ -24,6 +24,7 @@ class BaileysService {
   private logger = pino({ level: 'silent' });
   private reconnectAttempts: Map<string, number> = new Map();
   private keepAliveIntervals: Map<string, NodeJS.Timeout> = new Map();
+  private lastActivity: Map<string, Date> = new Map();
 
   constructor() {
     this.sessionsPath = process.env.SESSIONS_PATH || './sessions';
@@ -193,6 +194,9 @@ class BaileysService {
 
         console.log(`[${name}] Connected as ${instance.phoneNumber} (${instance.profileName})`);
 
+        // Update last activity
+        this.lastActivity.set(name, new Date());
+
         this.sendWebhook('connection.update', {
           instance: name,
           state: 'open',
@@ -214,6 +218,9 @@ class BaileysService {
         if (msg.key.remoteJid === 'status@broadcast') continue;
 
         console.log(`[${name}] New message from ${msg.key.remoteJid}`);
+
+        // Update last activity on message received
+        this.lastActivity.set(name, new Date());
 
         // Detecta e baixa mídia antes de enviar o webhook
         let mediaBase64: string | null = null;
@@ -473,6 +480,49 @@ class BaileysService {
     return result;
   }
 
+  /**
+   * Retorna informações detalhadas de saúde de todas as instâncias
+   */
+  getHealthInfo(): Array<{
+    name: string;
+    status: InstanceStatus;
+    phoneNumber?: string;
+    profileName?: string;
+    lastActivity?: Date;
+    reconnectAttempts: number;
+    socketAlive: boolean;
+    createdAt: Date;
+    lastConnected?: Date;
+  }> {
+    const result: Array<{
+      name: string;
+      status: InstanceStatus;
+      phoneNumber?: string;
+      profileName?: string;
+      lastActivity?: Date;
+      reconnectAttempts: number;
+      socketAlive: boolean;
+      createdAt: Date;
+      lastConnected?: Date;
+    }> = [];
+
+    this.instances.forEach((instance, name) => {
+      result.push({
+        name,
+        status: instance.status,
+        phoneNumber: instance.phoneNumber,
+        profileName: instance.profileName,
+        lastActivity: this.lastActivity.get(name),
+        reconnectAttempts: this.reconnectAttempts.get(name) || 0,
+        socketAlive: instance.socket !== null && instance.status === 'connected',
+        createdAt: instance.createdAt,
+        lastConnected: instance.lastConnected,
+      });
+    });
+
+    return result;
+  }
+
   async deleteInstance(name: string): Promise<void> {
     const instance = this.instances.get(name);
 
@@ -672,8 +722,11 @@ class BaileysService {
     console.log('All instances disconnected gracefully');
   }
 
-  private async sendWebhook(event: string, data: Record<string, unknown>): Promise<void> {
+  private async sendWebhook(event: string, data: Record<string, unknown>, retryCount = 0): Promise<void> {
     if (!this.webhookUrl) return;
+
+    const maxRetries = 3;
+    const baseDelay = 1000; // 1 segundo
 
     try {
       const response = await fetch(this.webhookUrl, {
@@ -689,10 +742,20 @@ class BaileysService {
       });
 
       if (!response.ok) {
-        console.error(`Webhook failed: ${response.status} ${response.statusText}`);
+        throw new Error(`HTTP ${response.status} ${response.statusText}`);
       }
     } catch (error) {
-      console.error('Webhook error:', error);
+      console.error(`Webhook error (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
+
+      // Retry com backoff exponencial
+      if (retryCount < maxRetries) {
+        const delay = baseDelay * Math.pow(2, retryCount); // 1s, 2s, 4s
+        console.log(`Retrying webhook in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.sendWebhook(event, data, retryCount + 1);
+      } else {
+        console.error(`Webhook failed after ${maxRetries + 1} attempts for event: ${event}`);
+      }
     }
   }
 }
