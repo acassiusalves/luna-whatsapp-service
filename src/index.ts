@@ -97,25 +97,21 @@ app.get('/debug', (_req: Request, res: Response) => {
 
 // Debug auth test (recebe key no body para testar)
 app.post('/debug/auth-test', (req: Request, res: Response) => {
-  const testKey = req.body?.key as string;
-  const match = testKey === API_KEY;
-  const testKeyLen = testKey?.length || 0;
-  const expectedLen = API_KEY?.length || 0;
+  try {
+    const testKey = (req.body?.key as string) || '';
+    const expectedKey = API_KEY || '';
+    const match = testKey === expectedKey;
 
-  res.json({
-    testKeyLen,
-    expectedLen,
-    match,
-    testKeyPrefix: testKey?.substring(0, 15),
-    expectedPrefix: API_KEY?.substring(0, 15),
-    // Compara character por character os primeiros 20
-    charComparison: testKey && API_KEY ? Array.from(testKey.substring(0, 20)).map((c, i) => ({
-      pos: i,
-      test: c.charCodeAt(0),
-      expected: API_KEY.charCodeAt(i),
-      match: c === API_KEY[i]
-    })) : []
-  });
+    res.json({
+      testKeyLen: testKey.length,
+      expectedLen: expectedKey.length,
+      match,
+      testKeyPrefix: testKey.substring(0, 15),
+      expectedPrefix: expectedKey.substring(0, 15),
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
 // Routes
