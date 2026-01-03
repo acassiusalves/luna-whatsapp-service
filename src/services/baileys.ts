@@ -207,9 +207,10 @@ class BaileysService {
     });
 
     // Handle incoming messages
+    console.log(`[${name}] Registering messages.upsert listener...`);
     socket.ev.on('messages.upsert', async ({ messages, type }) => {
       // Log detalhado ANTES de qualquer filtro para debug
-      console.log(`[${name}] messages.upsert - type: ${type}, count: ${messages.length}`);
+      console.log(`[${name}] >>> messages.upsert EVENT FIRED - type: ${type}, count: ${messages.length}`);
       for (const msg of messages) {
         console.log(`[${name}] Message DEBUG: fromMe=${msg.key.fromMe}, type=${type}, jid=${msg.key.remoteJid?.substring(0, 20)}`);
       }
