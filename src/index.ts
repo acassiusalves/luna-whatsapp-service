@@ -32,8 +32,8 @@ app.use(express.json());
 
 // API Key authentication middleware
 const authMiddleware = (req: Request, res: Response, next: NextFunction): void => {
-  // Skip auth for health check
-  if (req.path === '/health') {
+  // Skip auth for health check and debug
+  if (req.path === '/health' || req.path === '/debug') {
     next();
     return;
   }
@@ -64,6 +64,22 @@ app.get('/health', (_req: Request, res: Response) => {
     status: 'ok',
     uptime: process.uptime(),
     timestamp: new Date().toISOString()
+  });
+});
+
+// Debug endpoint (sem auth) para verificar configuração
+app.get('/debug', (_req: Request, res: Response) => {
+  const apiKeyConfigured = !!API_KEY;
+  const apiKeyPrefix = API_KEY ? API_KEY.substring(0, 10) : 'NOT_SET';
+  const webhookUrl = process.env.WEBHOOK_URL;
+
+  res.json({
+    apiKeyConfigured,
+    apiKeyPrefix,
+    webhookConfigured: !!webhookUrl,
+    webhookUrlPrefix: webhookUrl ? webhookUrl.substring(0, 50) : 'NOT_SET',
+    nodeEnv: process.env.NODE_ENV || 'development',
+    uptime: process.uptime(),
   });
 });
 
