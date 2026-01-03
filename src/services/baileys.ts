@@ -211,13 +211,12 @@ class BaileysService {
       if (type !== 'notify') return;
 
       for (const msg of messages) {
-        // Skip messages sent by us
-        if (msg.key.fromMe) continue;
-
         // Skip status updates
         if (msg.key.remoteJid === 'status@broadcast') continue;
 
-        console.log(`[${name}] New message from ${msg.key.remoteJid}`);
+        // Log message type (received or sent by us)
+        const messageType = msg.key.fromMe ? 'sent' : 'received';
+        console.log(`[${name}] Message ${messageType} - ${msg.key.remoteJid}`);
 
         // Update last activity on message received
         this.lastActivity.set(name, new Date());
