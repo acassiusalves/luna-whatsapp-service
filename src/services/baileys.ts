@@ -182,6 +182,8 @@ class BaileysService {
         // Reset reconnect attempts on successful connection
         this.reconnectAttempts.set(name, 0);
 
+        logDebugEvent('connection.open', { instance: name, phoneNumber: instance.phoneNumber });
+
         // Clear any existing keep-alive interval
         const existingInterval = this.keepAliveIntervals.get(name);
         if (existingInterval) {
@@ -436,6 +438,7 @@ class BaileysService {
     const result = await instance.socket.sendMessage(jid, { text });
 
     console.log(`[${instanceName}] Sent text to ${jid}`);
+    logDebugEvent('sendText', { instance: instanceName, to: jid, textPreview: text.substring(0, 50) });
     return result;
   }
 
