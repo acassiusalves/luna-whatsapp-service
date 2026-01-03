@@ -70,4 +70,37 @@ router.post('/media', async (req: Request, res: Response) => {
   }
 });
 
+// Fetch message history for a specific conversation
+router.post('/history', async (req: Request, res: Response) => {
+  try {
+    const { instanceName, jid, count = 50 } = req.body as {
+      instanceName: string;
+      jid: string;
+      count?: number;
+    };
+
+    if (!instanceName || !jid) {
+      res.status(400).json({
+        success: false,
+        error: 'instanceName and jid are required'
+      });
+      return;
+    }
+
+    const messages = await baileysService.fetchMessageHistory(instanceName, jid, count);
+
+    res.json({
+      success: true,
+      messages,
+      count: messages.length
+    });
+  } catch (error) {
+    console.error('Error fetching message history:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;

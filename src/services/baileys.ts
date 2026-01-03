@@ -102,7 +102,7 @@ class BaileysService {
       logger: this.logger,
       browser: ['Luna CRM', 'Chrome', '1.0.0'],
       generateHighQualityLinkPreview: true,
-      syncFullHistory: false,
+      syncFullHistory: true, // Ativado para sincronizar histórico completo
       markOnlineOnConnect: false,
     });
 
@@ -208,7 +208,18 @@ class BaileysService {
 
     // Handle incoming messages
     socket.ev.on('messages.upsert', async ({ messages, type }) => {
-      if (type !== 'notify') return;
+      // Log detalhado ANTES de qualquer filtro para debug
+      console.log(`[${name}] messages.upsert - type: ${type}, count: ${messages.length}`);
+      for (const msg of messages) {
+        console.log(`[${name}] Message DEBUG: fromMe=${msg.key.fromMe}, type=${type}, jid=${msg.key.remoteJid?.substring(0, 20)}`);
+      }
+
+      // Processar TANTO 'notify' (novas) quanto 'append' (sincronizadas do celular/WhatsApp Web)
+      // Isso garante que mensagens enviadas por outros dispositivos também sejam capturadas
+      if (type !== 'notify' && type !== 'append') {
+        console.log(`[${name}] Ignorando messages.upsert com type=${type}`);
+        return;
+      }
 
       for (const msg of messages) {
         // Skip status updates
@@ -216,7 +227,7 @@ class BaileysService {
 
         // Log message type (received or sent by us)
         const messageType = msg.key.fromMe ? 'sent' : 'received';
-        console.log(`[${name}] Message ${messageType} - ${msg.key.remoteJid}`);
+        console.log(`[${name}] Processing message ${messageType} - ${msg.key.remoteJid}`);
 
         // Update last activity on message received
         this.lastActivity.set(name, new Date());
@@ -339,6 +350,7 @@ class BaileysService {
     // Handle message status updates (delivered, read)
     socket.ev.on('messages.update', (updates) => {
       for (const update of updates) {
+        console.log(`[${name}] Message status update: ${update.key.id} -> status=${(update.update as { status?: number })?.status}`);
         this.sendWebhook('messages.update', {
           instance: name,
           update: {
@@ -347,6 +359,50 @@ class BaileysService {
           },
         });
       }
+    });
+
+    // Handle history sync (mensagens antigas ao conectar)
+    socket.ev.on('messaging-history.set', async ({ chats, messages, isLatest }) => {
+      console.log(`[${name}] History sync: ${messages.length} messages, ${chats.length} chats, isLatest: ${isLatest}`);
+
+      // Envia mensagens do histórico via webhook (em batches para não sobrecarregar)
+      const batchSize = 50;
+      for (let i = 0; i < messages.length; i += batchSize) {
+        const batch = messages.slice(i, i + batchSize);
+        for (const msg of batch) {
+          // Skip status updates
+          if (msg.key.remoteJid === 'status@broadcast') continue;
+
+          this.sendWebhook('messages.upsert', {
+            instance: name,
+            data: {
+              key: msg.key,
+              message: msg.message,
+              messageTimestamp: msg.messageTimestamp,
+              pushName: (msg as unknown as { pushName?: string }).pushName,
+              isHistorySync: true, // Flag para identificar que é do histórico
+            },
+          });
+        }
+        // Pequeno delay entre batches
+        if (i + batchSize < messages.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+      console.log(`[${name}] History sync completed: sent ${messages.length} messages to webhook`);
+    });
+
+    // Handle presence updates (digitando, gravando, online)
+    socket.ev.on('presence.update', ({ id, presences }) => {
+      console.log(`[${name}] Presence update for ${id}:`, JSON.stringify(presences));
+
+      this.sendWebhook('presence.update', {
+        instance: name,
+        data: {
+          jid: id,
+          presences,
+        },
+      });
     });
   }
 
@@ -520,6 +576,37 @@ class BaileysService {
     });
 
     return result;
+  }
+
+  /**
+   * Busca histórico de mensagens de uma conversa específica sob demanda
+   */
+  async fetchMessageHistory(instanceName: string, jid: string, count: number = 50): Promise<unknown[]> {
+    const instance = this.instances.get(instanceName);
+    if (!instance?.socket) throw new Error('Instance not connected');
+    if (instance.status !== 'connected') throw new Error('Instance not connected');
+
+    try {
+      console.log(`[${instanceName}] Fetching ${count} messages from ${jid}`);
+
+      // O Baileys tem o método fetchMessageHistory para buscar mensagens antigas
+      // Nota: Este método pode não estar disponível em todas as versões do Baileys
+      const socket = instance.socket as unknown as {
+        fetchMessageHistory?: (count: number, options: { jid: string }) => Promise<unknown[]>;
+      };
+
+      if (typeof socket.fetchMessageHistory === 'function') {
+        const messages = await socket.fetchMessageHistory(count, { jid });
+        console.log(`[${instanceName}] Fetched ${(messages || []).length} messages from ${jid}`);
+        return messages || [];
+      } else {
+        console.log(`[${instanceName}] fetchMessageHistory not available in this Baileys version`);
+        return [];
+      }
+    } catch (error) {
+      console.error(`[${instanceName}] Error fetching message history:`, error);
+      throw error;
+    }
   }
 
   async deleteInstance(name: string): Promise<void> {
