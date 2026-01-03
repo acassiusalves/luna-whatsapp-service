@@ -95,10 +95,10 @@ app.get('/debug', (_req: Request, res: Response) => {
   });
 });
 
-// Debug auth test (recebe key no body para testar)
-app.post('/debug/auth-test', (req: Request, res: Response) => {
+// Debug auth test (recebe key como query param)
+app.get('/debug/auth-test', (req: Request, res: Response) => {
   try {
-    const testKey = (req.body?.key as string) || '';
+    const testKey = (req.query.key as string) || '';
     const expectedKey = API_KEY || '';
     const match = testKey === expectedKey;
 
