@@ -33,7 +33,7 @@ app.use(express.json());
 // API Key authentication middleware
 const authMiddleware = (req: Request, res: Response, next: NextFunction): void => {
   // Skip auth for health check and debug
-  if (req.path === '/health' || req.path === '/debug') {
+  if (req.path === '/health' || req.path.startsWith('/debug')) {
     next();
     return;
   }
@@ -92,6 +92,29 @@ app.get('/debug', (_req: Request, res: Response) => {
     webhookUrlPrefix: webhookUrl ? webhookUrl.substring(0, 50) : 'NOT_SET',
     nodeEnv: process.env.NODE_ENV || 'development',
     uptime: process.uptime(),
+  });
+});
+
+// Debug auth test (recebe key no body para testar)
+app.post('/debug/auth-test', (req: Request, res: Response) => {
+  const testKey = req.body?.key as string;
+  const match = testKey === API_KEY;
+  const testKeyLen = testKey?.length || 0;
+  const expectedLen = API_KEY?.length || 0;
+
+  res.json({
+    testKeyLen,
+    expectedLen,
+    match,
+    testKeyPrefix: testKey?.substring(0, 15),
+    expectedPrefix: API_KEY?.substring(0, 15),
+    // Compara character por character os primeiros 20
+    charComparison: testKey && API_KEY ? Array.from(testKey.substring(0, 20)).map((c, i) => ({
+      pos: i,
+      test: c.charCodeAt(0),
+      expected: API_KEY.charCodeAt(i),
+      match: c === API_KEY[i]
+    })) : []
   });
 });
 
