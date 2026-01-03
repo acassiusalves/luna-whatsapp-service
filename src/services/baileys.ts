@@ -37,7 +37,7 @@ class BaileysService {
   private instances: Map<string, Instance> = new Map();
   private sessionsPath: string;
   private webhookUrl: string | null = null;
-  private logger = pino({ level: 'silent' });
+  private logger = pino({ level: 'warn' }); // Aumentado de 'silent' para ver warnings
   private reconnectAttempts: Map<string, number> = new Map();
   private keepAliveIntervals: Map<string, NodeJS.Timeout> = new Map();
   private lastActivity: Map<string, Date> = new Map();
@@ -119,7 +119,7 @@ class BaileysService {
       browser: ['Luna CRM', 'Chrome', '1.0.0'],
       generateHighQualityLinkPreview: true,
       syncFullHistory: true, // Ativado para sincronizar histórico completo
-      markOnlineOnConnect: false,
+      markOnlineOnConnect: true, // Marcar como online para receber mensagens
     });
 
     instance.socket = socket;
