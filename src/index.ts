@@ -114,6 +114,23 @@ app.get('/debug/auth-test', (req: Request, res: Response) => {
   }
 });
 
+// Debug headers (mostra o header x-api-key recebido)
+app.get('/debug/headers', (req: Request, res: Response) => {
+  const xApiKey = req.headers['x-api-key'] as string || '';
+  const expectedKey = API_KEY || '';
+
+  res.json({
+    receivedKeyLen: xApiKey.length,
+    expectedKeyLen: expectedKey.length,
+    receivedKeyPrefix: xApiKey.substring(0, 15),
+    expectedKeyPrefix: expectedKey.substring(0, 15),
+    match: xApiKey === expectedKey,
+    // Mostra char codes para debug
+    receivedCodes: Array.from(xApiKey).map((c, i) => ({ pos: i, char: c, code: c.charCodeAt(0) })),
+    expectedCodes: Array.from(expectedKey).map((c, i) => ({ pos: i, char: c, code: c.charCodeAt(0) })),
+  });
+});
+
 // Routes
 app.use('/instances', instancesRouter);
 app.use('/messages', messagesRouter);
