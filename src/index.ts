@@ -70,11 +70,13 @@ app.get('/health', (_req: Request, res: Response) => {
 // Debug endpoint (sem auth) para verificar configuração
 app.get('/debug', (_req: Request, res: Response) => {
   const apiKeyConfigured = !!API_KEY;
-  const apiKeyPrefix = API_KEY ? API_KEY.substring(0, 10) : 'NOT_SET';
+  const apiKeyLen = API_KEY ? API_KEY.length : 0;
+  const apiKeyPrefix = API_KEY ? API_KEY.substring(0, 15) : 'NOT_SET';
   const webhookUrl = process.env.WEBHOOK_URL;
 
   res.json({
     apiKeyConfigured,
+    apiKeyLen,
     apiKeyPrefix,
     webhookConfigured: !!webhookUrl,
     webhookUrlPrefix: webhookUrl ? webhookUrl.substring(0, 50) : 'NOT_SET',
