@@ -36,6 +36,20 @@ router.get('/health', (_req: Request, res: Response) => {
   }
 });
 
+// Debug endpoint para verificar configuração
+router.get('/debug/config', (_req: Request, res: Response) => {
+  const webhookUrl = process.env.WEBHOOK_URL || null;
+  res.json({
+    success: true,
+    config: {
+      webhookUrl: webhookUrl ? `${webhookUrl.substring(0, 50)}...` : 'NOT SET',
+      webhookConfigured: !!webhookUrl,
+      allowedOrigins: process.env.ALLOWED_ORIGINS || 'NOT SET',
+      nodeEnv: process.env.NODE_ENV || 'development',
+    }
+  });
+});
+
 // Create new instance
 router.post('/', async (req: Request, res: Response) => {
   try {
