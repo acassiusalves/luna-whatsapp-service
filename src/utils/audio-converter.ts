@@ -1,13 +1,19 @@
 import ffmpeg from 'fluent-ffmpeg';
-import ffmpegStatic from 'ffmpeg-static';
-import { Readable, PassThrough } from 'stream';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
 
-// Configura o caminho do ffmpeg
-if (ffmpegStatic) {
-  ffmpeg.setFfmpegPath(ffmpegStatic);
+// Tenta usar ffmpeg-static se disponível, senão usa o ffmpeg do sistema
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const ffmpegStatic = require('ffmpeg-static');
+  if (ffmpegStatic) {
+    ffmpeg.setFfmpegPath(ffmpegStatic);
+    console.log('[AudioConverter] Using ffmpeg-static');
+  }
+} catch {
+  // ffmpeg-static não disponível, usa ffmpeg do sistema (Alpine Linux)
+  console.log('[AudioConverter] Using system ffmpeg');
 }
 
 /**

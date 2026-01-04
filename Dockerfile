@@ -1,11 +1,12 @@
 FROM node:20-alpine
 
-# Install dependencies for Baileys (chromium deps might be needed)
+# Install dependencies for Baileys and FFmpeg for audio conversion
 RUN apk add --no-cache \
     python3 \
     make \
     g++ \
-    git
+    git \
+    ffmpeg
 
 WORKDIR /app
 
