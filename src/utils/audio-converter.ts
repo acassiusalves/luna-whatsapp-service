@@ -17,16 +17,20 @@ try {
 }
 
 /**
- * Converte um buffer de áudio WebM para OGG Opus
- * @param inputBuffer Buffer contendo o áudio WebM
+ * Converte um buffer de áudio de qualquer formato para OGG Opus
+ * @param inputBuffer Buffer contendo o áudio
+ * @param inputFormat Extensão do formato de entrada (ex: 'webm', 'mp4', 'm4a')
  * @returns Promise<Buffer> Buffer contendo o áudio OGG Opus
  */
-export async function convertWebmToOgg(inputBuffer: Buffer<ArrayBuffer>): Promise<Buffer<ArrayBuffer>> {
+export async function convertAudioToOgg(inputBuffer: Buffer<ArrayBuffer>, inputFormat: string = 'webm'): Promise<Buffer<ArrayBuffer>> {
   return new Promise((resolve, reject) => {
     // Usa arquivos temporários para maior compatibilidade
     const tempDir = os.tmpdir();
-    const inputPath = path.join(tempDir, `input_${Date.now()}.webm`);
-    const outputPath = path.join(tempDir, `output_${Date.now()}.ogg`);
+    const timestamp = Date.now();
+    const inputPath = path.join(tempDir, `input_${timestamp}.${inputFormat}`);
+    const outputPath = path.join(tempDir, `output_${timestamp}.ogg`);
+
+    console.log(`[AudioConverter] Converting ${inputFormat} to OGG Opus...`);
 
     // Escreve o buffer de entrada no arquivo temporário
     fs.writeFileSync(inputPath, inputBuffer);
@@ -68,6 +72,36 @@ export async function convertWebmToOgg(inputBuffer: Buffer<ArrayBuffer>): Promis
       })
       .save(outputPath);
   });
+}
+
+/**
+ * Converte um buffer de áudio WebM para OGG Opus
+ * @param inputBuffer Buffer contendo o áudio WebM
+ * @returns Promise<Buffer> Buffer contendo o áudio OGG Opus
+ * @deprecated Use convertAudioToOgg instead
+ */
+export async function convertWebmToOgg(inputBuffer: Buffer<ArrayBuffer>): Promise<Buffer<ArrayBuffer>> {
+  return convertAudioToOgg(inputBuffer, 'webm');
+}
+
+/**
+ * Converte um buffer de áudio MP4/M4A para OGG Opus
+ * @param inputBuffer Buffer contendo o áudio MP4
+ * @returns Promise<Buffer> Buffer contendo o áudio OGG Opus
+ */
+export async function convertMp4ToOgg(inputBuffer: Buffer<ArrayBuffer>): Promise<Buffer<ArrayBuffer>> {
+  return convertAudioToOgg(inputBuffer, 'mp4');
+}
+
+/**
+ * Verifica se o buffer é um arquivo MP4/M4A
+ * @param buffer Buffer a verificar
+ * @returns boolean
+ */
+export function isMp4Buffer(buffer: Buffer): boolean {
+  // MP4/M4A files have 'ftyp' at offset 4
+  if (buffer.length < 8) return false;
+  return buffer[4] === 0x66 && buffer[5] === 0x74 && buffer[6] === 0x79 && buffer[7] === 0x70;
 }
 
 /**

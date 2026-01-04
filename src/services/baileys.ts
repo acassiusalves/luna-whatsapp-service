@@ -16,7 +16,7 @@ import pino from 'pino';
 import path from 'path';
 import fs from 'fs';
 import type { Instance, InstanceInfo, InstanceStatus } from '../types/index.js';
-import { convertWebmToOgg, isWebmBuffer, detectAudioType } from '../utils/audio-converter.js';
+import { convertWebmToOgg, convertMp4ToOgg, isWebmBuffer, isMp4Buffer, detectAudioType } from '../utils/audio-converter.js';
 
 // Debug: armazenar últimos eventos para diagnóstico
 const debugEvents: Array<{ timestamp: string; event: string; data: unknown }> = [];
@@ -591,16 +591,30 @@ class BaileysService {
           isWebm: isWebmBuffer(buffer),
         });
 
-        // IMPORTANTE: WhatsApp não suporta WEBM para mensagens de voz
-        // Se o arquivo é realmente WebM, converte para OGG Opus
-        if (isWebmBuffer(buffer) || audioMimetype.includes('webm') || detectedType === 'audio/webm') {
+        // IMPORTANTE: WhatsApp só suporta OGG Opus para mensagens de voz (PTT)
+        // Converte WebM ou MP4 para OGG Opus
+        const isWebm = isWebmBuffer(buffer) || audioMimetype.includes('webm') || detectedType === 'audio/webm';
+        const isMp4 = isMp4Buffer(buffer) || audioMimetype.includes('mp4') || detectedType === 'audio/mp4';
+
+        if (isWebm) {
           console.log(`[${instanceName}] Converting WebM audio to OGG Opus for WhatsApp compatibility...`);
           try {
             buffer = await convertWebmToOgg(buffer);
             audioMimetype = 'audio/ogg; codecs=opus';
-            console.log(`[${instanceName}] Audio conversion successful, new buffer size: ${buffer.length}`);
+            console.log(`[${instanceName}] WebM->OGG conversion successful, new buffer size: ${buffer.length}`);
           } catch (conversionError) {
-            console.error(`[${instanceName}] Audio conversion failed:`, conversionError);
+            console.error(`[${instanceName}] WebM audio conversion failed:`, conversionError);
+            // Se falhar a conversão, tenta enviar como está
+            audioMimetype = 'audio/ogg; codecs=opus';
+          }
+        } else if (isMp4) {
+          console.log(`[${instanceName}] Converting MP4 audio to OGG Opus for WhatsApp compatibility...`);
+          try {
+            buffer = await convertMp4ToOgg(buffer);
+            audioMimetype = 'audio/ogg; codecs=opus';
+            console.log(`[${instanceName}] MP4->OGG conversion successful, new buffer size: ${buffer.length}`);
+          } catch (conversionError) {
+            console.error(`[${instanceName}] MP4 audio conversion failed:`, conversionError);
             // Se falhar a conversão, tenta enviar como está
             audioMimetype = 'audio/ogg; codecs=opus';
           }
