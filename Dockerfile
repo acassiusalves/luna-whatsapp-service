@@ -1,5 +1,6 @@
 FROM node:20-alpine
 
+# Force rebuild - v2
 # Install dependencies for Baileys and FFmpeg for audio conversion
 RUN apk add --no-cache \
     python3 \
