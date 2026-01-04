@@ -570,13 +570,27 @@ class BaileysService {
         };
         break;
       case 'audio': {
-        // Usa mimetype explícito se fornecido, senão tenta inferir
-        const audioMimetype = explicitMimetype || (httpContentType.includes('audio') ? httpContentType : 'audio/ogg; codecs=opus');
+        // Determina o mimetype do áudio
+        let audioMimetype = explicitMimetype || httpContentType;
+
+        // IMPORTANTE: WhatsApp não suporta WEBM para mensagens de voz
+        // Converte mimetype WEBM para OGG para compatibilidade
+        if (audioMimetype.includes('webm')) {
+          console.log(`[${instanceName}] Converting webm mimetype to ogg for WhatsApp compatibility`);
+          audioMimetype = 'audio/ogg; codecs=opus';
+        } else if (!audioMimetype || !audioMimetype.includes('audio')) {
+          // Fallback para OGG se mimetype inválido
+          audioMimetype = 'audio/ogg; codecs=opus';
+        }
+
         // Para áudio, sempre enviar como PTT (push-to-talk / mensagem de voz)
-        // Se explicitPtt foi passado, usa ele; senão, default true para áudio
         const isPtt = explicitPtt !== undefined ? explicitPtt : true;
 
-        console.log(`[${instanceName}] Audio config:`, { audioMimetype, isPtt });
+        console.log(`[${instanceName}] Audio config:`, {
+          originalMimetype: explicitMimetype || httpContentType,
+          finalMimetype: audioMimetype,
+          isPtt
+        });
 
         messageContent = {
           audio: buffer,
