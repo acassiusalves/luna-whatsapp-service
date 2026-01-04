@@ -157,6 +157,26 @@ class BaileysService {
     const instance = this.instances.get(name);
     if (!instance) throw new Error('Instance not found');
 
+    // Close existing socket if any to prevent duplicate connections
+    if (instance.socket) {
+      console.log(`[${name}] Closing existing socket before reconnecting...`);
+      try {
+        // @ts-ignore - removeAllListeners may not have a parameter
+        instance.socket.ev.removeAllListeners('');
+        instance.socket.end(new Error('Reconnecting'));
+      } catch (e) {
+        console.log(`[${name}] Error closing existing socket:`, e);
+      }
+      instance.socket = null;
+    }
+
+    // Clear existing keep-alive interval
+    const existingKeepAlive = this.keepAliveIntervals.get(name);
+    if (existingKeepAlive) {
+      clearInterval(existingKeepAlive);
+      this.keepAliveIntervals.delete(name);
+    }
+
     const sessionPath = path.join(this.sessionsPath, name);
 
     // Ensure session directory exists
