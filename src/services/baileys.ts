@@ -210,6 +210,10 @@ class BaileysService {
     socket.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
 
+      // Log all connection updates for debugging
+      console.log(`[${name}] connection.update event:`, { connection, hasQr: !!qr, hasLastDisconnect: !!lastDisconnect });
+      logDebugEvent('connection.update', { instance: name, connection, hasQr: !!qr });
+
       if (qr) {
         // Generate QR code as data URL (base64)
         instance.qrCode = await QRCode.toDataURL(qr);
