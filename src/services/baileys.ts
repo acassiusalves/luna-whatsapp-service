@@ -16,6 +16,7 @@ import pino from 'pino';
 import path from 'path';
 import fs from 'fs';
 import type { Instance, InstanceInfo, InstanceStatus } from '../types/index.js';
+import { convertWebmToOgg, isWebmBuffer, detectAudioType } from '../utils/audio-converter.js';
 
 // Debug: armazenar últimos eventos para diagnóstico
 const debugEvents: Array<{ timestamp: string; event: string; data: unknown }> = [];
@@ -555,7 +556,7 @@ class BaileysService {
     const response = await fetch(mediaUrl);
     if (!response.ok) throw new Error(`Failed to download media: ${response.status}`);
 
-    const buffer = Buffer.from(await response.arrayBuffer());
+    let buffer = Buffer.from(await response.arrayBuffer());
     const httpContentType = response.headers.get('content-type') || 'application/octet-stream';
 
     console.log(`[${instanceName}] Media downloaded:`, {
@@ -582,11 +583,27 @@ class BaileysService {
         // Determina o mimetype do áudio
         let audioMimetype = explicitMimetype || httpContentType;
 
+        // Detecta o tipo real do arquivo pelo buffer
+        const detectedType = detectAudioType(buffer);
+        console.log(`[${instanceName}] Audio detection:`, {
+          declaredMimetype: audioMimetype,
+          detectedType,
+          isWebm: isWebmBuffer(buffer),
+        });
+
         // IMPORTANTE: WhatsApp não suporta WEBM para mensagens de voz
-        // Converte mimetype WEBM para OGG para compatibilidade
-        if (audioMimetype.includes('webm')) {
-          console.log(`[${instanceName}] Converting webm mimetype to ogg for WhatsApp compatibility`);
-          audioMimetype = 'audio/ogg; codecs=opus';
+        // Se o arquivo é realmente WebM, converte para OGG Opus
+        if (isWebmBuffer(buffer) || audioMimetype.includes('webm') || detectedType === 'audio/webm') {
+          console.log(`[${instanceName}] Converting WebM audio to OGG Opus for WhatsApp compatibility...`);
+          try {
+            buffer = await convertWebmToOgg(buffer);
+            audioMimetype = 'audio/ogg; codecs=opus';
+            console.log(`[${instanceName}] Audio conversion successful, new buffer size: ${buffer.length}`);
+          } catch (conversionError) {
+            console.error(`[${instanceName}] Audio conversion failed:`, conversionError);
+            // Se falhar a conversão, tenta enviar como está
+            audioMimetype = 'audio/ogg; codecs=opus';
+          }
         } else if (!audioMimetype || !audioMimetype.includes('audio')) {
           // Fallback para OGG se mimetype inválido
           audioMimetype = 'audio/ogg; codecs=opus';
@@ -598,6 +615,7 @@ class BaileysService {
         console.log(`[${instanceName}] Audio config:`, {
           originalMimetype: explicitMimetype || httpContentType,
           finalMimetype: audioMimetype,
+          finalBufferSize: buffer.length,
           isPtt
         });
 
