@@ -203,9 +203,9 @@ class BaileysService {
 
       if (connection === 'close') {
         const reason = (lastDisconnect?.error as Boom)?.output?.statusCode;
-        const shouldReconnect = reason !== DisconnectReason.loggedOut;
+        const MAX_RECONNECT_ATTEMPTS = 2;
 
-        console.log(`[${name}] Connection closed. Reason: ${reason}. Reconnect: ${shouldReconnect}`);
+        console.log(`[${name}] Connection closed. Reason: ${reason}`);
 
         if (reason === DisconnectReason.loggedOut) {
           instance.status = 'disconnected';
@@ -217,20 +217,33 @@ class BaileysService {
           if (fs.existsSync(sessionPath)) {
             fs.rmSync(sessionPath, { recursive: true, force: true });
           }
-        } else if (shouldReconnect) {
-          // Reconnect automatically with exponential backoff
-          instance.status = 'connecting';
+          console.log(`[${name}] Logged out - session cleaned, manual reconnect required`);
+        } else {
+          // Check if we should attempt reconnect
           const attempts = this.reconnectAttempts.get(name) || 0;
-          const delay = Math.min(3000 * Math.pow(2, attempts), 60000); // Max 60s
-          this.reconnectAttempts.set(name, attempts + 1);
-          console.log(`[${name}] Reconnecting in ${delay/1000}s (attempt ${attempts + 1})`);
-          setTimeout(() => this.connect(name), delay);
+
+          if (attempts < MAX_RECONNECT_ATTEMPTS) {
+            // Reconnect automatically with exponential backoff (max 2 attempts)
+            instance.status = 'connecting';
+            const delay = Math.min(3000 * Math.pow(2, attempts), 15000); // Max 15s
+            this.reconnectAttempts.set(name, attempts + 1);
+            console.log(`[${name}] Reconnecting in ${delay/1000}s (attempt ${attempts + 1}/${MAX_RECONNECT_ATTEMPTS})`);
+            setTimeout(() => this.connect(name), delay);
+          } else {
+            // Max attempts reached - stop trying and wait for manual reconnect
+            instance.status = 'disconnected';
+            console.log(`[${name}] Max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached. Manual reconnect required.`);
+            // Reset attempts counter for next manual reconnect
+            this.reconnectAttempts.set(name, 0);
+          }
         }
 
         this.sendWebhook('connection.update', {
           instance: name,
           state: 'close',
           reason,
+          reconnectAttempts: this.reconnectAttempts.get(name) || 0,
+          maxAttemptsReached: (this.reconnectAttempts.get(name) || 0) >= MAX_RECONNECT_ATTEMPTS,
         });
       }
 
