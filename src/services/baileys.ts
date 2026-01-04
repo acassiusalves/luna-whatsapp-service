@@ -41,6 +41,9 @@ class BaileysService {
   private reconnectAttempts: Map<string, number> = new Map();
   private keepAliveIntervals: Map<string, NodeJS.Timeout> = new Map();
   private lastActivity: Map<string, Date> = new Map();
+  // Tracking de última mensagem recebida para detectar conexões zombie
+  private lastMessageReceived: Map<string, Date> = new Map();
+  private zombieCheckInterval: NodeJS.Timeout | null = null;
 
   constructor() {
     this.sessionsPath = process.env.SESSIONS_PATH || './sessions';
@@ -70,9 +73,66 @@ class BaileysService {
           await this.createInstance(sessionName);
         }
       }
+
+      // Iniciar verificação periódica de conexões zombie
+      this.startZombieChecker();
     } catch (error) {
       console.error('Error loading existing sessions:', error);
     }
+  }
+
+  /**
+   * Inicia verificação periódica para detectar conexões "zombie"
+   * Uma conexão zombie é quando o socket parece conectado mas não está recebendo mensagens
+   */
+  private startZombieChecker(): void {
+    // Limpar intervalo anterior se existir
+    if (this.zombieCheckInterval) {
+      clearInterval(this.zombieCheckInterval);
+    }
+
+    // Verificar a cada 15 minutos
+    const ZOMBIE_CHECK_INTERVAL = 15 * 60 * 1000; // 15 minutos
+    const ZOMBIE_THRESHOLD = 60 * 60 * 1000; // 60 minutos sem mensagens = possível zombie
+
+    console.log('[ZOMBIE-CHECKER] Starting zombie connection checker (every 15 min)');
+
+    this.zombieCheckInterval = setInterval(() => {
+      this.instances.forEach(async (instance, name) => {
+        if (instance.status !== 'connected') return;
+
+        const lastReceived = this.lastMessageReceived.get(name);
+        const lastConnected = instance.lastConnected;
+
+        // Se nunca recebemos uma mensagem desde a conexão
+        if (!lastReceived && lastConnected) {
+          const timeSinceConnect = Date.now() - lastConnected.getTime();
+
+          // Se passou mais de 60 min conectado sem receber nenhuma mensagem
+          if (timeSinceConnect > ZOMBIE_THRESHOLD) {
+            console.warn(`[ZOMBIE-CHECKER] [${name}] Possible zombie: connected for ${Math.round(timeSinceConnect / 60000)} min without receiving any messages`);
+            console.warn(`[ZOMBIE-CHECKER] [${name}] Forcing reconnect...`);
+
+            // Força reconexão
+            try {
+              await this.connect(name);
+              console.log(`[ZOMBIE-CHECKER] [${name}] Reconnect initiated`);
+            } catch (error) {
+              console.error(`[ZOMBIE-CHECKER] [${name}] Failed to reconnect:`, error);
+            }
+          }
+        } else if (lastReceived) {
+          const timeSinceLastMessage = Date.now() - lastReceived.getTime();
+
+          // Se passou mais de 60 min desde a última mensagem recebida
+          if (timeSinceLastMessage > ZOMBIE_THRESHOLD) {
+            console.warn(`[ZOMBIE-CHECKER] [${name}] Possible zombie: no messages received in ${Math.round(timeSinceLastMessage / 60000)} min`);
+            // Apenas logar warning, não reconectar automaticamente se já recebeu mensagens antes
+            // (pode ser que simplesmente não há mensagens novas)
+          }
+        }
+      });
+    }, ZOMBIE_CHECK_INTERVAL);
   }
 
   async createInstance(name: string): Promise<Instance> {
@@ -240,6 +300,9 @@ class BaileysService {
         console.log(`[${name}] Ignorando messages.upsert com type=${type}`);
         return;
       }
+
+      // Atualizar timestamp de última mensagem recebida (para detectar conexões zombie)
+      this.lastMessageReceived.set(name, new Date());
 
       for (const msg of messages) {
         // Skip status updates
@@ -565,6 +628,7 @@ class BaileysService {
     phoneNumber?: string;
     profileName?: string;
     lastActivity?: Date;
+    lastMessageReceived?: Date;
     reconnectAttempts: number;
     socketAlive: boolean;
     createdAt: Date;
@@ -576,6 +640,7 @@ class BaileysService {
       phoneNumber?: string;
       profileName?: string;
       lastActivity?: Date;
+      lastMessageReceived?: Date;
       reconnectAttempts: number;
       socketAlive: boolean;
       createdAt: Date;
@@ -589,6 +654,7 @@ class BaileysService {
         phoneNumber: instance.phoneNumber,
         profileName: instance.profileName,
         lastActivity: this.lastActivity.get(name),
+        lastMessageReceived: this.lastMessageReceived.get(name),
         reconnectAttempts: this.reconnectAttempts.get(name) || 0,
         socketAlive: instance.socket !== null && instance.status === 'connected',
         createdAt: instance.createdAt,
@@ -804,6 +870,12 @@ class BaileysService {
 
   async disconnectAll(): Promise<void> {
     console.log('Disconnecting all instances for graceful shutdown...');
+
+    // Clear zombie checker interval
+    if (this.zombieCheckInterval) {
+      clearInterval(this.zombieCheckInterval);
+      console.log('[ZOMBIE-CHECKER] Interval cleared');
+    }
 
     // Clear all keep-alive intervals
     for (const [name, interval] of this.keepAliveIntervals) {
