@@ -207,17 +207,26 @@ class BaileysService {
 
         console.log(`[${name}] Connection closed. Reason: ${reason}`);
 
-        if (reason === DisconnectReason.loggedOut) {
+        // Casos que requerem limpeza de sessão (sessão inválida/expirada)
+        const sessionInvalidReasons = [
+          DisconnectReason.loggedOut,
+          DisconnectReason.connectionClosed, // 428 - Connection Closed (sessão inválida após restart)
+          DisconnectReason.connectionReplaced, // 440 - Connection Replaced
+          DisconnectReason.badSession, // 500 - Bad Session
+        ];
+
+        if (sessionInvalidReasons.includes(reason)) {
           instance.status = 'disconnected';
           instance.qrCode = null;
           instance.phoneNumber = undefined;
           instance.profileName = undefined;
 
-          // Clean session if logged out
+          // Clean session if logged out or session is invalid
           if (fs.existsSync(sessionPath)) {
             fs.rmSync(sessionPath, { recursive: true, force: true });
+            console.log(`[${name}] Session cleaned due to reason: ${reason}`);
           }
-          console.log(`[${name}] Logged out - session cleaned, manual reconnect required`);
+          console.log(`[${name}] Disconnected (reason: ${reason}) - session cleaned, manual reconnect required`);
         } else {
           // Check if we should attempt reconnect
           const attempts = this.reconnectAttempts.get(name) || 0;
