@@ -32,7 +32,17 @@ router.post('/text', async (req: Request, res: Response) => {
 // Send media message
 router.post('/media', async (req: Request, res: Response) => {
   try {
-    const { instanceName, to, mediaUrl, caption, mediaType, fileName } = req.body as SendMediaRequest;
+    const { instanceName, to, mediaUrl, caption, mediaType, fileName, mimetype, ptt } = req.body as SendMediaRequest;
+
+    console.log('[MESSAGES /media] Request received:', {
+      instanceName,
+      to,
+      mediaType,
+      mediaUrlLength: mediaUrl?.length,
+      fileName,
+      mimetype,
+      ptt,
+    });
 
     if (!instanceName || !to || !mediaUrl || !mediaType) {
       res.status(400).json({
@@ -57,9 +67,12 @@ router.post('/media', async (req: Request, res: Response) => {
       mediaUrl,
       caption,
       mediaType,
-      fileName
+      fileName,
+      mimetype,
+      ptt
     );
 
+    console.log('[MESSAGES /media] Media sent successfully:', { messageId: (result as { key?: { id?: string } })?.key?.id });
     res.json({ success: true, result });
   } catch (error) {
     console.error('Error sending media:', error);

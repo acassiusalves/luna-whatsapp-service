@@ -41,6 +41,8 @@ export interface SendMediaRequest {
   caption?: string;
   mediaType: 'image' | 'video' | 'audio' | 'document';
   fileName?: string;
+  mimetype?: string;  // Mimetype explícito (para áudio especialmente)
+  ptt?: boolean;      // Push-to-talk (áudio de voz)
 }
 
 export interface SetWebhookRequest {

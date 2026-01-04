@@ -511,7 +511,9 @@ class BaileysService {
     mediaUrl: string,
     caption?: string,
     mediaType: 'image' | 'video' | 'audio' | 'document' = 'image',
-    fileName?: string
+    fileName?: string,
+    explicitMimetype?: string,
+    explicitPtt?: boolean
   ): Promise<unknown> {
     const instance = this.instances.get(instanceName);
     if (!instance?.socket) throw new Error('Instance not connected');
@@ -519,12 +521,25 @@ class BaileysService {
 
     const jid = this.formatJid(to);
 
+    console.log(`[${instanceName}] sendMedia called:`, {
+      to: jid,
+      mediaType,
+      explicitMimetype,
+      explicitPtt,
+      mediaUrlLength: mediaUrl?.length,
+    });
+
     // Download media from URL
     const response = await fetch(mediaUrl);
     if (!response.ok) throw new Error(`Failed to download media: ${response.status}`);
 
     const buffer = Buffer.from(await response.arrayBuffer());
-    const contentType = response.headers.get('content-type') || 'application/octet-stream';
+    const httpContentType = response.headers.get('content-type') || 'application/octet-stream';
+
+    console.log(`[${instanceName}] Media downloaded:`, {
+      bufferSize: buffer.length,
+      httpContentType,
+    });
 
     let messageContent: AnyMessageContent;
 
@@ -541,17 +556,26 @@ class BaileysService {
           caption: caption || undefined,
         };
         break;
-      case 'audio':
+      case 'audio': {
+        // Usa mimetype explícito se fornecido, senão tenta inferir
+        const audioMimetype = explicitMimetype || (httpContentType.includes('audio') ? httpContentType : 'audio/ogg; codecs=opus');
+        // Para áudio, sempre enviar como PTT (push-to-talk / mensagem de voz)
+        // Se explicitPtt foi passado, usa ele; senão, default true para áudio
+        const isPtt = explicitPtt !== undefined ? explicitPtt : true;
+
+        console.log(`[${instanceName}] Audio config:`, { audioMimetype, isPtt });
+
         messageContent = {
           audio: buffer,
-          mimetype: contentType.includes('audio') ? contentType : 'audio/mp4',
-          ptt: contentType.includes('ogg'), // Voice note if ogg
+          mimetype: audioMimetype,
+          ptt: isPtt,
         };
         break;
+      }
       case 'document':
         messageContent = {
           document: buffer,
-          mimetype: contentType,
+          mimetype: explicitMimetype || httpContentType,
           fileName: fileName || 'document',
         };
         break;
@@ -561,7 +585,7 @@ class BaileysService {
 
     const result = await instance.socket.sendMessage(jid, messageContent);
 
-    console.log(`[${instanceName}] Sent ${mediaType} to ${jid}`);
+    console.log(`[${instanceName}] Sent ${mediaType} to ${jid}:`, { messageId: (result as { key?: { id?: string } })?.key?.id });
     return result;
   }
 
